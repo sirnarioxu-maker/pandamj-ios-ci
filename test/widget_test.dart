@@ -24,7 +24,7 @@ void main() {
       'credential_revision': 1,
     });
 
-    await tester.pumpWidget(const PandaAdminApp());
+    await tester.pumpWidget(const PandaAdminApp(autoLogin: false));
     await tester.pumpAndSettle();
 
     expect(find.text('熊猫麻将后台'), findsOneWidget);

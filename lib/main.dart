@@ -239,7 +239,8 @@ class DashboardData {
 }
 
 class PandaAdminApp extends StatefulWidget {
-  const PandaAdminApp({super.key});
+  const PandaAdminApp({super.key, this.autoLogin = true});
+  final bool autoLogin;
   @override
   State<PandaAdminApp> createState() => _PandaAdminAppState();
 }
@@ -251,9 +252,33 @@ class _PandaAdminAppState extends State<PandaAdminApp> {
   @override
   void initState() {
     super.initState();
-    LoginStore.load().then((value) {
-      if (mounted) setState(() => saved = value);
-    });
+    _start();
+  }
+
+  Future<void> _start() async {
+    var login = await LoginStore.load();
+    login = login.copyWith(backendIndex: 1);
+    await LoginStore.save(login);
+    if (!widget.autoLogin) {
+      if (mounted) setState(() => saved = login);
+      return;
+    }
+
+    final client = AdminApi(backends[login.backendIndex]);
+    try {
+      await client.login('', '', '000000');
+      if (!mounted) {
+        client.close();
+        return;
+      }
+      setState(() {
+        saved = login;
+        api = client;
+      });
+    } catch (_) {
+      client.close();
+      if (mounted) setState(() => saved = login);
+    }
   }
 
   @override
