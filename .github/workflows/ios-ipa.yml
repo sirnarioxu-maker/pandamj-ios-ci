@@ -1,0 +1,69 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "ios/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/ios-ipa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: Flutter iOS unsigned IPA
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.50.0"
+          channel: stable
+          cache: true
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build iOS app
+        env:
+          PANDAMJ_ADMIN_USER: ${{ secrets.PANDAMJ_ADMIN_USER }}
+          PANDAMJ_ADMIN_PASSWORD: ${{ secrets.PANDAMJ_ADMIN_PASSWORD }}
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define=PANDAMJ_ADMIN_USER="$PANDAMJ_ADMIN_USER"
+          --dart-define=PANDAMJ_ADMIN_PASSWORD="$PANDAMJ_ADMIN_PASSWORD"
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d build/ios/iphoneos/Runner.app
+          rm -rf build/ios/ipa-payload
+          mkdir -p build/ios/ipa-payload/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa-payload/Payload/
+          cd build/ios/ipa-payload
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload ../pandamj-admin-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandamj-admin-ios-unsigned
+          path: build/ios/pandamj-admin-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
